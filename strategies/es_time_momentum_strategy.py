@@ -108,35 +108,37 @@ class ESTimeMomentumStrategy(StrategyTemplate):
         self.bar_open_time = datetime.strptime(self.open_time, '%H:%M:%S') - timedelta(minutes=30)
         self.bar_close_time = datetime.strptime(self.close_time, '%H:%M:%S') - timedelta(minutes=30)
 
-        self.current_pos = 0
-        self.trading_in_process = False
-        self.vt_orderids = -1
-        self.vt_orderids_datetime = -1
-        self.last_price = -1
+        # self.current_pos = 0
+        # self.trading_in_process = False
+        # self.vt_orderids = -1
+        # self.vt_orderids_datetime = -1
+        # self.last_price = -1
         # self.z_score = 0
 
-        self.open_orderids = []
-        self.fake_orderids = []
-        self.prev_traded = 0
+        # self.open_orderids = []
+        # self.fake_orderids = []
+        # self.prev_traded = 0
         # self.target = 0
         # self.vt_symbol = vt_symbols[0]
-        self.chase_interval = 20  # 拆单间隔:秒
-        self.prev_debug_message = ""
-        self.debug_message = ""
+        # self.chase_interval = 20  # 拆单间隔:秒
+        # self.prev_debug_message = ""
+        # self.debug_message = ""
 
         #For order handling
-        self.chase_long_trigger = False
-        self.chase_short_trigger = False
-        self.last_vt_orderid = ""
-        self.long_trade_volume = 0
-        self.short_trade_volume = 0
-        self.cancel_status = False
+        # self.chase_long_trigger = False
+        # self.chase_short_trigger = False
+        # self.last_vt_orderid = ""
+        # self.long_trade_volume = 0
+        # self.short_trade_volume = 0
+        # self.cancel_status = False
 
         # Get saved pos for further action (e.g. close all after trading period)
         self.current_pos = self.get_pos(self.vt_symbol)
         self.write_log(f"outstanding pos : {self.current_pos}")
+        current_time = datetime.now().time()
+
+        #Close all pos outside trading period
         if self.current_pos != 0:
-            current_time = datetime.now().time()
             close_position_period = self.time_in_close_position_period(self.t_open_time, self.t_close_time, current_time)
             if close_position_period:
                 if self.current_pos > 0:
@@ -146,16 +148,16 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                     self.target = -self.current_pos
                     self.write_log(f"Close all outstanding pos outside trading period. Begin LONG {abs(self.current_pos)} pos.")
 
-            # Check trading period and do the pos offset
-            in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
-            if in_trading_period:
-                # self.write_log(tick)
-                calculated_pos = self.target
-                self.write_log(f"calculated pos : {calculated_pos}")
-                pos_offset = calculated_pos - self.current_pos
-                self.write_log(f"Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
-                if (pos_offset != 0):
-                    self.target = pos_offset
+        # Check trading period and do the pos offset
+        # in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
+        # if in_trading_period:
+        #     # self.write_log(tick)
+        #     calculated_pos = self.target
+        #     self.write_log(f"calculated pos : {calculated_pos}")
+        #     pos_offset = calculated_pos - self.current_pos
+        #     self.write_log(f"Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
+        #     if (pos_offset != 0):
+        #         self.target = pos_offset
 
         self.put_event()
 
@@ -379,8 +381,8 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                     std_array = am.std(self.window, array=True)
                     # self.write_log(std_array)
 
-                    if bar.datetime.date() == datetime.today().date() - timedelta(days=1):  # Developemt
-                    # if self.trading:   # Production
+                    # if bar.datetime.date() == datetime.today().date() - timedelta(days=1):  # Developemt
+                    if self.trading:   # Production
                         self.z_score = (bar.close_price - sma_array[-1]) / std_array[-1]
                         self.write_log(f"(bar.close_price - sma_array[-1]) / std_array[-1] -> ({bar.close_price} - {sma_array[-1]}) / {std_array[-1]} = {self.z_score}")
                         if self.z_score < self.thre:

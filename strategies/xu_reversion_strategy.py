@@ -130,33 +130,33 @@ class XUReversionStrategy(StrategyTemplate):
         self.bar_trading_end_time = datetime.strptime(self.trading_end_time, '%H:%M:%S') - timedelta(minutes=5)
         self.bar_close_all_position_time = datetime.strptime(self.close_all_position_time, '%H:%M:%S') - timedelta(minutes=5)
 
-        self.current_pos = 0
-        self.next_level = -1
-        self.trading_in_process = False
-        self.vt_orderids = -1
-        self.vt_orderids_datetime = -1
-        self.last_price = -1
+        # self.current_pos = 0
+        # self.next_level = -1
+        # self.trading_in_process = False
+        # self.vt_orderids = -1
+        # self.vt_orderids_datetime = -1
+        # self.last_price = -1
         # self.anchor_price = -1
-        self.long_value = -1
-        self.short_value = -1
+        # self.long_value = -1
+        # self.short_value = -1
 
-        self.open_orderids = []
-        self.fake_orderids = []
-        self.prev_traded = 0
-        self.target = 0
+        # self.open_orderids = []
+        # self.fake_orderids = []
+        # self.prev_traded = 0
+        # self.target = 0
         # self.vt_symbol = vt_symbols[0]
-        self.chase_interval = 20  # 拆单间隔:秒
-        self.max_limit_reached = False
-        self.prev_debug_message = ""
-        self.debug_message = ""
+        # self.chase_interval = 20  # 拆单间隔:秒
+        # self.max_limit_reached = False
+        # self.prev_debug_message = ""
+        # self.debug_message = ""
 
         #For order handling
-        self.chase_long_trigger = False
-        self.chase_short_trigger = False
-        self.last_vt_orderid = ""
-        self.long_trade_volume = 0
-        self.short_trade_volume = 0
-        self.cancel_status = False
+        # self.chase_long_trigger = False
+        # self.chase_short_trigger = False
+        # self.last_vt_orderid = ""
+        # self.long_trade_volume = 0
+        # self.short_trade_volume = 0
+        # self.cancel_status = False
 
         # Put Anchor into self.anchor_price
         self.anchor_price = self.anchor_price_latest
@@ -164,10 +164,10 @@ class XUReversionStrategy(StrategyTemplate):
         # Get saved pos for further action (e.g. close all after trading period)
         self.current_pos = self.get_pos(self.vt_symbol)
         self.write_log(f"outstanding pos : {self.current_pos}")
-        if self.current_pos != 0:
-            current_time = datetime.now().time()
+        current_time = datetime.now().time()
 
-            # Close all position if 09:30 - 14:35
+        # Close all position if 09:30 - 14:35
+        if self.current_pos != 0:
             close_position_period = self.time_in_close_position_period(self.t_close_all_position_time, self.t_trading_start_time, current_time)
             if close_position_period:
                 if self.current_pos > 0:
@@ -177,17 +177,17 @@ class XUReversionStrategy(StrategyTemplate):
                     self.target = -self.current_pos
                     self.write_log(f"Close all outstanding pos outside trading period. Begin LONG {abs(self.current_pos)} pos.")
 
-            # Check anchor level if 09:30 - 14:35
-            in_trading_period = self.time_in_trading_period(self.t_trading_start_time, self.t_trading_end_time, current_time)
-            if in_trading_period:
-                tick = self.get_tick(self.vt_symbol)
-                # self.write_log(tick)
-                calculated_pos = self.get_calculated_pos(tick)
-                self.write_log(f"calculated pos : {calculated_pos}")
-                pos_offset = calculated_pos - self.current_pos
-                self.write_log(f"Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
-                if (pos_offset != 0):
-                    self.target = pos_offset
+        # Check anchor level if 14:35 to 9:00
+        in_trading_period = self.time_in_trading_period(self.t_trading_start_time, self.t_trading_end_time, current_time)
+        if in_trading_period:
+            tick = self.get_tick(self.vt_symbol)
+            # self.write_log(tick)
+            calculated_pos = self.get_calculated_pos(tick)
+            self.write_log(f"calculated pos : {calculated_pos}")
+            pos_offset = calculated_pos - self.current_pos
+            self.write_log(f"Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
+            if (pos_offset != 0):
+                self.target = pos_offset
 
         self.put_event()
 
@@ -332,13 +332,15 @@ class XUReversionStrategy(StrategyTemplate):
 
                     # self.write_log(f"{order}")
                     # self.write_log(f"{tick.datetime.replace(tzinfo=None)} - {self.vt_orderids_datetime}")
-                    if order.direction == Direction.LONG and order.status == Status.SUBMITTING and order.traded == 0 and (tick.datetime.replace(tzinfo=None) - self.vt_orderids_datetime).total_seconds() > self.chase_interval:
+                    if order.direction == Direction.LONG and order.status == Status.SUBMITTING and order.traded == 0 and \
+                            (tick.datetime.replace(tzinfo=None) - self.vt_orderids_datetime).total_seconds() > self.chase_interval:
                         #fake submitting on hold
                         fake_submitting = True
                         redo_long = True
                         self.fake_orderids.append(vt_orderid)
                         self.write_log(f"Fake SUBMITTING Order. Cancel LONG order (id:{vt_orderid}) [Traded:{order.traded}/{order.volume}]. Cancel and place a new order - bid:{tick.bid_price_1} price:{order.price} spread:{self.algo_limit_spread}")
-                    if order.direction == Direction.SHORT and order.status == Status.SUBMITTING and order.traded == 0 and (tick.datetime.replace(tzinfo=None) - self.vt_orderids_datetime).total_seconds() > self.chase_interval:
+                    if order.direction == Direction.SHORT and order.status == Status.SUBMITTING and order.traded == 0 and \
+                            (tick.datetime.replace(tzinfo=None) - self.vt_orderids_datetime).total_seconds() > self.chase_interval:
                         #fake submitting on hold
                         fake_submitting = True
                         redo_short = True
