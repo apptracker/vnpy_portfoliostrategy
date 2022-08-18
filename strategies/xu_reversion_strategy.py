@@ -448,6 +448,7 @@ class XUReversionStrategy(StrategyTemplate):
                 # tick = self.pbg.last_ticks[vt_symbol]
                 self.write_log(f"{bar.datetime} : {bar.close_price}, count : {am.count}")
                 self.anchor_price_latest = bar.close_price
+                self.anchor_price = bar.close_price
                 # self.anchor_debug = self.anchor_debug + f"{bar.close_price}, "
 
             # Stop trading after 9:00

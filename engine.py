@@ -98,6 +98,10 @@ class StrategyEngine(BaseEngine):
         self.event_engine.register(EVENT_TRADE, self.process_trade_event)
         self.event_engine.register(EVENT_POSITION, self.process_position_event)
 
+        # New added for porfoliostrategy log to log file
+        log_engine = self.main_engine.get_engine("log")
+        self.event_engine.register(EVENT_PORTFOLIO_LOG, log_engine.process_log_event)
+
     def init_datafeed(self):
         """
         Init datafeed client.
