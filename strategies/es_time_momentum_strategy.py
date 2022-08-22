@@ -8,6 +8,9 @@ from vnpy_portfoliostrategy import StrategyTemplate, StrategyEngine
 from vnpy_portfoliostrategy.utility import PortfolioBarGenerator
 from vnpy.trader.constant import Interval, Direction, Offset, Status
 
+import numpy as np
+import pandas as pd
+
 class ESTimeMomentumStrategy(StrategyTemplate):
     """"""
 
@@ -36,13 +39,19 @@ class ESTimeMomentumStrategy(StrategyTemplate):
     vt_orderids = -1
     last_price = -1
     z_score = 0
+    target_value = 0
+    target_middle = 0
+    snap_price = -1
 
     variables = [
         "current_pos",
         "trading_in_process",
         "vt_orderids",
         "last_price",
-        "z_score"
+        "z_score",
+        "target_value",
+        "target_middle",
+        "snap_price"
     ]
 
     def __init__(self, strategy_engine: StrategyEngine, strategy_name: str, vt_symbols: List[str], setting: dict):
@@ -63,6 +72,14 @@ class ESTimeMomentumStrategy(StrategyTemplate):
         self.vt_orderids_datetime = -1
         self.last_price = -1
         self.z_score = 0
+        self.target_value = 0
+        self.target_middle = 0
+        self.snap_price = -1
+
+        self.z_score_latest = 0
+        self.target_value_latest = 0
+        self.target_middle_latest = 0
+        self.snap_price_latest = -1
 
         self.open_orderids = []
         self.fake_orderids = []
@@ -132,6 +149,12 @@ class ESTimeMomentumStrategy(StrategyTemplate):
         # self.short_trade_volume = 0
         # self.cancel_status = False
 
+        # Prevent got replaced by the data from json file
+        self.z_score = self.z_score_latest
+        self.target_value = self.target_value_latest
+        self.target_middle = self.target_middle_latest
+        self.snap_price = self.snap_price_latest
+
         # Get saved pos for further action (e.g. close all after trading period)
         self.current_pos = self.get_pos(self.vt_symbol)
         self.write_log(f"outstanding pos : {self.current_pos}")
@@ -149,15 +172,36 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                     self.write_log(f"Close all outstanding pos outside trading period. Begin LONG {abs(self.current_pos)} pos.")
 
         # Check trading period and do the pos offset
-        # in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
-        # if in_trading_period:
-        #     # self.write_log(tick)
-        #     calculated_pos = self.target
-        #     self.write_log(f"calculated pos : {calculated_pos}")
-        #     pos_offset = calculated_pos - self.current_pos
-        #     self.write_log(f"Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
-        #     if (pos_offset != 0):
-        #         self.target = pos_offset
+        in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
+        if in_trading_period:
+            tick = self.get_tick(self.vt_symbol)
+            # self.write_log(tick)
+            calculated_pos = self.target
+            self.write_log(f"calculated pos : {calculated_pos}")
+            pos_offset = calculated_pos - self.current_pos
+
+            if pos_offset != 0:
+                if pos_offset > 0:
+                    if tick.last_price < self.snap_price:
+                        self.write_log(f"Current price < snap price. Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
+                        self.target = pos_offset
+                    else:
+                        self.write_log(f"Current price > snap price, not favor for LONG. Offset(trades {pos_offset}) skipped.")
+                        self.target_middle = pos_offset
+                        self.target = 0
+
+                if pos_offset < 0:
+                    if tick.last_price > self.snap_price:
+                        self.write_log(f"Current price > snap price. Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
+                        self.target = pos_offset
+                    else:
+                        self.write_log(f"Current price < snap price, not favor for SHORT. Offset(trades {pos_offset}) skipped.")
+                        self.target_middle = pos_offset
+                        self.target = 0
+
+            else:
+                self.write_log(f"Position unchanged. No further action.")
+
 
         self.put_event()
 
@@ -165,6 +209,7 @@ class ESTimeMomentumStrategy(StrategyTemplate):
         """
         Callback when strategy is stopped.
         """
+        self.cancel_all()
         self.write_log("策略停止")
 
     def on_tick(self, tick: TickData):
@@ -176,6 +221,20 @@ class ESTimeMomentumStrategy(StrategyTemplate):
             return
         self.last_price = tick.last_price
         self.current_pos = self.get_pos(self.vt_symbol)
+
+        ########## Check last price with anchor to determine new target if pos is 0 ##########
+        if self.target_middle != 0:
+            current_time = datetime.now().time()
+            in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
+            if self.trading_in_process == False and self.target == 0 and in_trading_period and self.snap_price != -1 and tick.bid_price_1 != -1:
+                if self.target_middle > 0 and tick.last_price < self.snap_price:
+                    self.write_log(f"Current price < snap price. Doing position trades {self.target_middle}.")
+                    self.target = self.pos_offset
+
+                if self.target_middle < 0 and tick.last_price > self.snap_price:
+                    self.write_log(f"Current price > snap price. Doing position trades {self.target_middle}.")
+                    self.target = self.pos_offset
+
 
         ########## Place order when new target ##########
         # self.write_log(tick)
@@ -375,24 +434,37 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                 self.write_log(f"{bar.datetime} : {bar.close_price}, count : {am.count}")
 
                 if am.count >= self.window:
-                    sma_array = am.sma(self.window, array=True)
+                    # sma_array = am.sma(self.window, array=True)
                     # self.write_log(sma_array)
-
-                    std_array = am.std(self.window, array=True)
+                    # std_array = am.std(self.window, array=True)
                     # self.write_log(std_array)
 
-                    # if bar.datetime.date() == datetime.today().date() - timedelta(days=1):  # Developemt
-                    if self.trading:   # Production
-                        self.z_score = (bar.close_price - sma_array[-1]) / std_array[-1]
-                        self.write_log(f"(bar.close_price - sma_array[-1]) / std_array[-1] -> ({bar.close_price} - {sma_array[-1]}) / {std_array[-1]} = {self.z_score}")
+                    if bar.datetime.date() == datetime.today().date() - timedelta(days=0):  # Developemt+Production (order checking in the middle at the same day)
+                    # if self.trading:   # Production (no order checking in the middle)
+                        self.snap_price = bar.close_price
+                        # self.z_score = (bar.close_price - sma_array[-1]) / std_array[-1]
+                        # self.write_log(f"(bar.close_price - sma_array[-1]) / std_array[-1] -> ({bar.close_price} - {sma_array[-1]}) / {std_array[-1]} = {self.z_score}")
+
+                        close_array = am.close_array
+                        # self.write_log(f"{close_array}")
+                        # self.write_log(f"{close_array[-self.window:]}")
+                        New_MA = np.mean(close_array[-self.window:])
+                        New_STD = np.std(close_array[-self.window:], ddof=1)
+                        New_Zscore = float((close_array[-1] - New_MA) / New_STD)
+                        self.write_log(f"z_score : (bar.close_price - sma_array[-1]) / std_array[-1] -> ({close_array[-1]} - {New_MA}) / {New_STD} = {New_Zscore}")
+                        self.z_score = New_Zscore
+
                         if self.z_score < self.thre:
                             self.target = self.fixed_size
+                            self.target_value = self.target
                             self.write_log(f"z_score({self.z_score}) < {self.thre}. Begin LONG {abs(self.target)} pos.")
                         elif self.z_score > self.thre:
                             self.target = -self.fixed_size
+                            self.target_value = self.target
                             self.write_log(f"z_score({self.z_score}) > {self.thre}. Begin SHORT {abs(self.target)} pos.")
                         else:
                             self.target = 0
+                            self.target_value = self.target
 
             if bar.datetime.hour == self.bar_close_time.hour and bar.datetime.minute == self.bar_close_time.minute:  # on bar close, so the bar of 22:00 means 22:30
                 if self.current_pos > 0:
@@ -401,6 +473,13 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                 elif self.current_pos < 0:
                     self.target = -self.current_pos
                     self.write_log(f"Close all pos at {self.close_time}. Begin LONG {abs(self.current_pos)} pos.")
+                self.target_value = 0
+                self.target_middle = 0
+
+        self.z_score_latest = self.z_score
+        self.target_value_latest = self.target_value
+        self.target_middle_latest = self.target_middle
+        self.snap_price_latest = self.snap_price
 
         self.put_event()
 
