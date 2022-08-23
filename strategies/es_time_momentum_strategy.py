@@ -39,7 +39,7 @@ class ESTimeMomentumStrategy(StrategyTemplate):
     vt_orderids = -1
     last_price = -1
     z_score = 0
-    target_value = 0
+    target_today = 0
     target_middle = 0
     snap_price = -1
 
@@ -49,7 +49,7 @@ class ESTimeMomentumStrategy(StrategyTemplate):
         "vt_orderids",
         "last_price",
         "z_score",
-        "target_value",
+        "target_today",
         "target_middle",
         "snap_price"
     ]
@@ -72,12 +72,12 @@ class ESTimeMomentumStrategy(StrategyTemplate):
         self.vt_orderids_datetime = -1
         self.last_price = -1
         self.z_score = 0
-        self.target_value = 0
+        self.target_today = 0
         self.target_middle = 0
         self.snap_price = -1
 
         self.z_score_latest = 0
-        self.target_value_latest = 0
+        self.target_today_latest = 0
         self.target_middle_latest = 0
         self.snap_price_latest = -1
 
@@ -151,7 +151,7 @@ class ESTimeMomentumStrategy(StrategyTemplate):
 
         # Prevent got replaced by the data from json file
         self.z_score = self.z_score_latest
-        self.target_value = self.target_value_latest
+        self.target_today = self.target_today_latest
         self.target_middle = self.target_middle_latest
         self.snap_price = self.snap_price_latest
 
@@ -173,7 +173,7 @@ class ESTimeMomentumStrategy(StrategyTemplate):
 
         # Check trading period and do the pos offset
         in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
-        if in_trading_period:
+        if in_trading_period and self.current_pos == 0:
             tick = self.get_tick(self.vt_symbol)
             # self.write_log(tick)
             calculated_pos = self.target
@@ -230,10 +230,12 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                 if self.target_middle > 0 and tick.last_price < self.snap_price:
                     self.write_log(f"Current price < snap price. Doing position trades {self.target_middle}.")
                     self.target = self.pos_offset
+                    self.target_middle = 0
 
                 if self.target_middle < 0 and tick.last_price > self.snap_price:
                     self.write_log(f"Current price > snap price. Doing position trades {self.target_middle}.")
                     self.target = self.pos_offset
+                    self.target_middle = 0
 
 
         ########## Place order when new target ##########
@@ -456,15 +458,13 @@ class ESTimeMomentumStrategy(StrategyTemplate):
 
                         if self.z_score < self.thre:
                             self.target = self.fixed_size
-                            self.target_value = self.target
                             self.write_log(f"z_score({self.z_score}) < {self.thre}. Begin LONG {abs(self.target)} pos.")
                         elif self.z_score > self.thre:
                             self.target = -self.fixed_size
-                            self.target_value = self.target
                             self.write_log(f"z_score({self.z_score}) > {self.thre}. Begin SHORT {abs(self.target)} pos.")
                         else:
                             self.target = 0
-                            self.target_value = self.target
+                        self.target_today = self.target
 
             if bar.datetime.hour == self.bar_close_time.hour and bar.datetime.minute == self.bar_close_time.minute:  # on bar close, so the bar of 22:00 means 22:30
                 if self.current_pos > 0:
@@ -473,11 +473,11 @@ class ESTimeMomentumStrategy(StrategyTemplate):
                 elif self.current_pos < 0:
                     self.target = -self.current_pos
                     self.write_log(f"Close all pos at {self.close_time}. Begin LONG {abs(self.current_pos)} pos.")
-                self.target_value = 0
+                self.target_today = 0
                 self.target_middle = 0
 
         self.z_score_latest = self.z_score
-        self.target_value_latest = self.target_value
+        self.target_today_latest = self.target_today
         self.target_middle_latest = self.target_middle
         self.snap_price_latest = self.snap_price
 
