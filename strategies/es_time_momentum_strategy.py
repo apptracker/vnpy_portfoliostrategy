@@ -173,34 +173,38 @@ class ESTimeMomentumStrategy(StrategyTemplate):
 
         # Check trading period and do the pos offset
         in_trading_period = self.time_in_trading_period(self.t_open_time, self.t_close_time, current_time)
-        if in_trading_period and self.current_pos == 0:
-            tick = self.get_tick(self.vt_symbol)
-            # self.write_log(tick)
-            calculated_pos = self.target
-            self.write_log(f"calculated pos : {calculated_pos}")
-            pos_offset = calculated_pos - self.current_pos
+        if in_trading_period:
+            if self.current_pos == 0:
+                tick = self.get_tick(self.vt_symbol)
+                # self.write_log(tick)
+                calculated_pos = self.target
+                self.write_log(f"calculated pos : {calculated_pos}")
+                pos_offset = calculated_pos - self.current_pos
 
-            if pos_offset != 0:
-                if pos_offset > 0:
-                    if tick.last_price < self.snap_price:
-                        self.write_log(f"Current price < snap price. Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
-                        self.target = pos_offset
-                    else:
-                        self.write_log(f"Current price > snap price, not favor for LONG. Offset(trades {pos_offset}) skipped.")
-                        self.target_middle = pos_offset
-                        self.target = 0
+                if pos_offset != 0:
+                    if pos_offset > 0:
+                        if tick.last_price < self.snap_price:
+                            self.write_log(f"Current price < snap price. Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
+                            self.target = pos_offset
+                        else:
+                            self.write_log(f"Current price > snap price, not favor for LONG. Offset(trades {pos_offset}) skipped.")
+                            self.target_middle = pos_offset
+                            self.target = 0
 
-                if pos_offset < 0:
-                    if tick.last_price > self.snap_price:
-                        self.write_log(f"Current price > snap price. Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
-                        self.target = pos_offset
-                    else:
-                        self.write_log(f"Current price < snap price, not favor for SHORT. Offset(trades {pos_offset}) skipped.")
-                        self.target_middle = pos_offset
-                        self.target = 0
+                    if pos_offset < 0:
+                        if tick.last_price > self.snap_price:
+                            self.write_log(f"Current price > snap price. Doing position offset(trades {pos_offset}). Total Pos : {self.current_pos}")
+                            self.target = pos_offset
+                        else:
+                            self.write_log(f"Current price < snap price, not favor for SHORT. Offset(trades {pos_offset}) skipped.")
+                            self.target_middle = pos_offset
+                            self.target = 0
+                else:
+                    self.write_log(f"Position unchanged. No further action.")
 
-            else:
-                self.write_log(f"Position unchanged. No further action.")
+            if self.current_pos != 0:
+                self.write_log(f"Position already opened. No further action.")
+                self.target = 0
 
 
         self.put_event()
