@@ -14,7 +14,7 @@ class XUReversionStrategy(StrategyTemplate):
     author = "V"
 
     trading_start_time = "14:35:00"
-    trading_end_time = "9:00:00"
+    trading_end_time = "9:05:00"
     close_all_position_time = "9:30:00"
     thre = 0.01
     flat_thre = 0
@@ -453,16 +453,23 @@ class XUReversionStrategy(StrategyTemplate):
 
             # Stop trading after 9:00
             if bar.datetime.hour == self.bar_trading_end_time.hour and bar.datetime.minute == self.bar_trading_end_time.minute:
+                self.anchor_price_latest = -1
                 self.anchor_price = -1
+                if self.trading:
+                    self.write_log(f"Stop trading after 9:00.")
 
             # Close all pos when 9:30
             if bar.datetime.hour == self.bar_close_all_position_time.hour and bar.datetime.minute == self.bar_close_all_position_time.minute:
-                if self.current_pos > 0:
-                    self.target = -self.current_pos
-                    self.write_log(f"Close all pos at {self.close_all_position_time}. Begin SHORT {abs(self.current_pos)} pos.")
-                elif self.current_pos < 0:
-                    self.target = -self.current_pos
-                    self.write_log(f"Close all pos at {self.close_all_position_time}. Begin LONG {abs(self.current_pos)} pos.")
+                self.anchor_price_latest = -1
+                self.anchor_price = -1
+                if self.trading:
+                    self.write_log(f"Close all pos at {self.close_all_position_time} if any.")
+                    if self.current_pos > 0:
+                        self.target = -self.current_pos
+                        self.write_log(f"Close all pos. Begin SHORT {abs(self.current_pos)} pos.")
+                    elif self.current_pos < 0:
+                        self.target = -self.current_pos
+                        self.write_log(f"Close all pos. Begin LONG {abs(self.current_pos)} pos.")
 
         self.put_event()
 
