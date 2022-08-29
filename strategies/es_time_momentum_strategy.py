@@ -233,12 +233,12 @@ class ESTimeMomentumStrategy(StrategyTemplate):
             if self.trading_in_process == False and self.target == 0 and in_trading_period and self.snap_price != -1 and tick.bid_price_1 != -1:
                 if self.target_middle > 0 and tick.last_price < self.snap_price:
                     self.write_log(f"Current price < snap price. Doing position trades {self.target_middle}.")
-                    self.target = self.pos_offset
+                    self.target = self.target_middle
                     self.target_middle = 0
 
                 if self.target_middle < 0 and tick.last_price > self.snap_price:
                     self.write_log(f"Current price > snap price. Doing position trades {self.target_middle}.")
-                    self.target = self.pos_offset
+                    self.target = self.target_middle
                     self.target_middle = 0
 
 
